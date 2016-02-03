@@ -60,5 +60,6 @@ function get($key,$filter)
         return (int)$_GET['key'];
     }
 }
+include BASE_PATH."../../autoload.php";
 
 \Li\App::init()->run();
