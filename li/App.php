@@ -101,9 +101,8 @@ class App
     {
         $this->_initRegister();
 
-		$this->request = HttpRequest::instance();
-        $this->route = Route::instance()->init($this->request);
 
+        $this->route = Route::instance()->init();
         $this->controller = Controller::create($this->route);
     }
 

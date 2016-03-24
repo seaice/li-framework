@@ -30,7 +30,6 @@ abstract class Controller
             $route = App::app()->config['defaultController'];
 
         $route .= '/';
-        // debug($route);
         if(($pos = strpos($route,'/')) !== false)
         {
             // 得到controller id
@@ -104,7 +103,6 @@ abstract class Controller
 
     private function initTemplate()
     {
-        include(LI_PATH.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'smarty'.DIRECTORY_SEPARATOR.'Smarty.php');
         $this->_template = new \Smarty();
 
         $this->_template->force_compile = true;
