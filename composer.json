@@ -16,7 +16,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Li\\": ["li", "li/driver", "li/vendor"]
+            "Li\\": ""
         }
     }
 }
