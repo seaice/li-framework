@@ -64,11 +64,11 @@ class GridView {
     public $pagination;
     // public $order;
     public $reset;
-    public $params=array(
+    public $params = [
         'filter'=>true,
-        'columns'=>array(),
-        'criteria'=>array(),
-    );
+        'columns'=>[],
+        'criteria'=>[],
+    ];
 
 
     // 全局控制筛选
@@ -82,25 +82,22 @@ class GridView {
      *
      * @return mixed the gridview
      */
-    static public function init($controller, $model, $params=array())
-    {
+    static public function init($controller, $model, $params=array()) {
         return new self($controller, $model, $params);
     }
 
-    public function __construct($controller, $model, $params=null)
-    {
+    public function __construct($controller, $model, $params=null) {
         $this->params=array_merge($this->params,$params);
 
+        $this->criteria=$this->params['criteria'];
         $this->reset=$controller->url();
         $this->controller = $controller;
         $this->model = $model;
         $this->pagination =  new Pagination($this->model,$this->params['criteria']);
 
-        if(empty($this->params['columns']))
-        {
+        if(empty($this->params['columns'])) {
             $cols = $model->alias();
-            foreach($cols as $key => $value)
-            {
+            foreach($cols as $key => $value) {
                 $tmp['name'] = $key;
                 $tmp['alias'] = $value;
                 $tmp['filter'] = true;
@@ -108,6 +105,7 @@ class GridView {
                 $this->params['columns'][] = $tmp;
                 unset($tmp);
             }
+
             $this->params['columns'][] = array(
                 'alias'=>'操作',
                 'buttons'=>array(
@@ -124,19 +122,21 @@ class GridView {
                     ),
                 )
             );
-        }
-        else
-        {
+        } else {
             $columns = [];
-            foreach($this->params['columns'] as $value)
-            {
+            foreach($this->params['columns'] as $value) {
                 $column = [];
                 $column['filter'] = true;
-                if(isset($value['buttons'])) {
+                if(isset($value['value'])) {
+                    $column['value'] = $value['value'];
+                }
+                if (isset($value['buttons'])) {
                     $column['name'] = '';
                     $column['type'] = 'buttons';
+                    $column['buttons'] = $value['buttons'];
+                    $column['alias'] = $value['alias'];
                 }
-                if( ! is_array($value)) {
+                if (!is_array($value)) {
                     $column['name'] = $value;
                 } else if( isset($value['name']) ) {
                     $column['name'] = $value['name'];
@@ -145,7 +145,7 @@ class GridView {
                     } 
                 }
 
-                if(!isset($value['alias']))
+                if (!isset($value['alias']))
                 {
                     if(isset($model->alias()[$column['name']]))
                         $column['alias'] = $model->alias()[$column['name']];
@@ -211,34 +211,26 @@ class GridView {
      * @return array the gridview data
      */
 
-    public function getData()
-    {
-        if(empty($this->criteria['order']))
-        {
+    public function getData() {
+        if(empty($this->criteria['order'])) {
             $this->criteria['order'] = $this->model->pk.' DESC';
         }
 
+        $this->pagination->init($this->criteria);
+
         $this->criteria['limit'] = ($this->pagination->currentPage-1)*$this->pagination->pageSize.','.$this->pagination->pageSize;
-
-
-        list($data,$criteria) = $this->model->search($this->criteria);
-        $this->pagination->init($criteria);
+        $data = $this->model->search($this->criteria);
         unset($value);
-        foreach($data as &$value)
-        {
-            foreach($this->columns as $column)
-            {
-                if(isset($column['value'])) // 自定义value
-                {
+        foreach($data as &$value) {
+            foreach($this->columns as $column) {
+                // 自定义value
+                if(isset($column['value'])) {
                     $value->$column['name'] = $this->evaluateExpression($column['value'],array('data'=>$value));
-                }
-                elseif(isset($column['buttons']) && is_array($column['buttons']))
-                {
+                } elseif(isset($column['buttons']) && is_array($column['buttons'])) {
                     $value->{'__BUTTONS_HTML__'} = $this->_getButtons($column['buttons'],$value);
                 }
             }
         }
-
         return $data;
     }
 
@@ -248,18 +240,15 @@ class GridView {
      * @param $row array current row data
      * @return string the html code of button
      */
-    private function _getButtons($buttons,$row)
-    {
+    private function _getButtons($buttons, $row) {
         $html = '';
-        foreach($buttons as $value)
-        {
+        foreach($buttons as $value) {
             $value['options']['class']='gridview-'.$value['action'];
             $tmp='<a  href="';
 
             $tmp.=url().$this->controller->id.'/'.$value['action'].'?id='.$row['id'].'&from='.urlencode($_SERVER['REQUEST_URI']).'"';
 
-            if(is_array($value['options']) && !empty($value['options']))
-            {
+            if (is_array($value['options']) && !empty($value['options'])) {
                 $tmp.=$this->_getOptions($value['options']);
             }
             $tmp.='>'.$value['name'].'</a>&nbsp;&nbsp;';
@@ -275,20 +264,14 @@ class GridView {
      * @param $options array html options
      * @return string the html code of options
      */
-    private function _getOptions($options)
-    {
+    private function _getOptions($options) {
         $optionsHtml='';
-        if(!empty($options))
-        {
-            if(is_array($options))
-            {
-                foreach($options as $key => $value)
-                {
+        if (!empty($options)) {
+            if(is_array($options)) {
+                foreach($options as $key => $value) {
                     $optionsHtml.=' '.$key.'="'.$value.'"';
                 }
-            }
-            else
-            {
+            } else {
                 $optionsHtml=' class="'.$options.'"';
             }
         }
@@ -302,15 +285,11 @@ class GridView {
      * @param array $_data_ additional parameters to be passed to the above expression/callback.
      * @return mixed the expression result
      */
-    public function evaluateExpression($_expression_,$_data_)
-    {
-        if(is_string($_expression_))
-        {
-            extract($_data_->attributes);
+    public function evaluateExpression($_expression_, $_data_) {
+        if (is_string($_expression_)) {
+            extract($_data_);
             return eval('return '.$_expression_.';');
-        }
-        else
-        {
+        } else {
             $_data_[]=$this;
             return call_user_func_array($_expression_, $_data_);
         }

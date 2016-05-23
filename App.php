@@ -29,7 +29,9 @@ class App
         'Li\Route' => '/Route.php',
         'Li\Controller' => '/Controller.php',
         'Li\Model' => '/Model.php',
+        'Li\Form' => '/Form.php',
         'Li\Service' => '/Service.php',
+        'Li\Expression' => '/Expression.php',
         'Li\HttpRequest' => '/HttpRequest.php',
         'Li\Exception' => '/Exception.php',
         'Li\Db' => '/Db.php',
@@ -55,7 +57,6 @@ class App
     function __construct()
     {
         require(PATH_APP.'core/config/'.ENV.'/config.php');
-
         if(is_array($config))
         {
             $this->config = array_merge($this->config, $config);
@@ -70,6 +71,7 @@ class App
     static function init()
     {
         self::$_app = new self();
+        require(PATH_LI . DIRECTORY_SEPARATOR . 'Function.php');
         return self::$_app;
     }
 
@@ -129,7 +131,6 @@ class App
         else
         {
             // 无命名空间
-            // include class file relying on include_path
             if(strpos($className,'\\')===false)  // class without namespace
             {
                 if(isset(App::app()->config['import']) 
@@ -139,11 +140,9 @@ class App
                     {
 
                         $classFile = PATH_APP . 'core' . DIRECTORY_SEPARATOR . $path . DIRECTORY_SEPARATOR . $className.'.php';
-
                         if(is_file($classFile))
                         {
                             include($classFile);
-                            break;
                         }
                     }
                 }
@@ -151,7 +150,12 @@ class App
             else
             {
                 // 命名空间
-                
+                $path = explode('\\', $className);
+                $classFile = PATH_APP . 'core' . DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $path) . '.php';
+                if(is_file($classFile))
+                {
+                    include($classFile);
+                }
             }
             return class_exists($className,false) || interface_exists($className,false);
         }

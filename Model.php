@@ -231,7 +231,9 @@ abstract class Model implements \ArrayAccess {
         $this->_criteria['field'] = 'COUNT(*) as `count`';
 
         $this->build();
-        return $this->_query()['count'];
+        $ret = $this->_query()['count'];
+        $this->reset();
+        return $ret;
     }
 
     public function update($data, $criteria = null) {
@@ -243,7 +245,7 @@ abstract class Model implements \ArrayAccess {
         $this->_criteria['data'] = $data;
 
         $this->build();
-        return $this->query()[0]['count'];
+        return $this->exec();
     }
 
     public function updateByPk($pk, $data) {
@@ -393,14 +395,18 @@ abstract class Model implements \ArrayAccess {
             $countData = count($this->_criteria['data']);
             $iData = 0;
             foreach ($this->_criteria['data'] as $key => $value) {
-                $sql .= ' `' . $key . '`=:' . $key;
+                if ($value instanceof Expression) {
+                    $sql .= '`'. $key . '`='.$value;
+                } else {
+                    $sql .= ' `' . $key . '`=:' . $key;
+                    $this->_criteria['values'][] = array(':' . $key, $value);
+                }
 
                 if ($iData < $countData - 1) {
                     $sql .= ',';
                 }
 
                 $iData++;
-                $this->_criteria['values'][] = array(':' . $key, $value);
             }
 
             $sql .= $sqlConditon;
@@ -426,10 +432,11 @@ abstract class Model implements \ArrayAccess {
             $sql .= $sqlConditon;
         }
 
-        // debug($this->_criteria);
-        // debug($sql);
-
         $this->_criteria['sql'] = $sql;
+    }
+
+    public function getCondition() {
+        return $this->_criteria['condition'];
     }
 
     private function _query($fetchStyle = \PDO::FETCH_ASSOC) {
@@ -463,14 +470,16 @@ abstract class Model implements \ArrayAccess {
         return $model;
     }
 
-    protected function populateRecord($attributes) {
+    protected function populateRecord($attributes, $reset=true) {
         if ($attributes !== false) {
             $record = $this->instantiate($attributes);
             $record->init();
             if ($this->_events['afterFind']) {
                 $record->afterFind();
             }
-
+            if($reset) {
+                $this->reset();
+            }
             return $record;
         } else {
             return null;
@@ -509,7 +518,7 @@ abstract class Model implements \ArrayAccess {
                         $tmp[$key] = $value[$this->getTable() . '_' . $key];
                     }
 
-                    if (($record = $this->populateRecord($tmp)) !== null) {
+                    if (($record = $this->populateRecord($tmp, false)) !== null) {
                         $records[$value[$this->getTable() . '_' . $this->pk]] = $record;
                     }
                 }
@@ -535,17 +544,16 @@ abstract class Model implements \ArrayAccess {
             }
         } else {
             foreach ($data as $attributes) {
-                if (($record = $this->populateRecord($attributes)) !== null) {
+                if (($record = $this->populateRecord($attributes, false)) !== null) {
                     if ($index === null) {
                         $records[] = $record;
                     } else {
                         $records[$record->$index] = $record;
                     }
-
                 }
             }
         }
-
+        $this->reset();
         return $records;
     }
 
@@ -557,10 +565,6 @@ abstract class Model implements \ArrayAccess {
         $this->reset();
         return Db::db()->$dbName->execute();
     }
-
-    // protected function save()
-    // {
-    // }
 
     public function save($runValidation = true, $attributeNames = null) {
         if ($runValidation === true) {
@@ -591,7 +595,7 @@ abstract class Model implements \ArrayAccess {
         return $ret;
     }
 
-    protected function getLastId() {
+    public function getLastId() {
         $dbName = $this->getDb();
         return Db::db()->$dbName->getLastInsertID();
     }
@@ -692,12 +696,12 @@ abstract class Model implements \ArrayAccess {
         }
     }
 
-    protected function groupBy($group) {
+    public function group($group) {
         $this->_criteria['group'] = $group;
         return $this;
     }
 
-    protected function orderBy($order) {
+    public function order($order) {
         $this->_criteria['order'] = $order;
         return $this;
     }
@@ -786,28 +790,26 @@ abstract class Model implements \ArrayAccess {
 
         if (isset($rules[$this->_scenario])) {
             $this->validator = Validator::make($this->attributes, $rules[$this->_scenario], [], $this->alias());
+            return $this->validator->fails();
         }
 
-        return $this->validator->fails();
+        return true;
     }
 
-    protected function getValidate($scene = 'default') {
+    public function getValidator($scene = 'default') {
         $rule = $this->rules();
-        if (isset($this->validate) && $this->validate instanceof Validate) {
-            $this->validate->getValidate();
-        } else {
-            if (isset($rule[$scene])) {
-                $this->validate = new Validate($rule[$scene]);
-                $this->validate->getValidate();
-            }
-        }
-
+        if (isset($this->validator) && $this->validator instanceof Validator) {
+            $this->validator->getValidator();
+        } 
+        return '';
     }
 
-    protected function getError() {
-        if ($this->validate instanceof Validate) {
-            $this->validate->getError();
+    public function getErrors() {
+        if ($this->validator instanceof Validator) {
+            return $this->validator->errors;
         }
+
+        return [];
     }
 
     protected function rules() {

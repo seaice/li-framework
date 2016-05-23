@@ -22,7 +22,7 @@ class Locale {
         }
 
         if(! array_key_exists($file, $this->_message)) {
-            $this->_message[$file] = require APP_PATH . 'resoures' . DIRECTORY_SEPARATOR . 'lang' . DIRECTORY_SEPARATOR . $this->_language . DIRECTORY_SEPARATOR . $file . '.php';
+            $this->_message[$file] = require PATH_APP . 'resoures' . DIRECTORY_SEPARATOR . 'lang' . DIRECTORY_SEPARATOR . $this->_language . DIRECTORY_SEPARATOR . $file . '.php';
         }
 
         $ret = $this->_message[$file];
@@ -37,5 +37,4 @@ class Locale {
         
         return $ret;
     }
-
 }

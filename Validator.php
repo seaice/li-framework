@@ -4,7 +4,7 @@ namespace Li;
 class Validator {
     public $rules = [];
     public $dataWrap = 'data';
-    public $error = [];
+    public $errors = [];
     protected $_data;
     protected $_dataType;
     protected $_customMessages;
@@ -31,6 +31,10 @@ class Validator {
         return !$this->passes();
     }
 
+    public function test() {
+        return false;
+    }
+
     public function passes() {
         foreach ($this->rules as $attribute => $rules) {
             foreach ($rules as $rule) {
@@ -40,7 +44,7 @@ class Validator {
             }
         }
 
-        return count($this->error) === 0;
+        return count($this->errors) === 0;
     }
 
     protected function _validate($attribute, $rule) {
@@ -104,7 +108,7 @@ class Validator {
 
         list($id, $parameters) = $this->_transParameters($attribute, $rule, $parameters);
         
-        $this->error[$attribute] = App::app()->t($id, $parameters);
+        $this->errors[$attribute] = App::app()->t($id, $parameters);
     }
 
     protected function _transParameters($attribute, $rule, $parameters) {
@@ -545,6 +549,10 @@ class Validator {
         return $this->validateRequired($attribute, $value) && in_array($value, $acceptable, true);
     }
 
+    public function getValidator() {
+        echo json_encode($this->errors);
+    }
+
     /**
      * 验证
      */
@@ -664,77 +672,6 @@ class Validator {
         }
         $dt = \DateTime::createFromFormat($format, $date);
         return $dt !== false && !array_sum($dt->getLastErrors());
-    }
-
-    public function getValidate() {
-        $rule_array = array();
-        $countA = count($this->rule);
-        $i = 0;
-        $ruleJs = '';
-        $messageJs = '';
-
-        foreach ($this->rule as $key => $rule) {
-            $ruleJs .= '"' . $this->dataWrap . '[' . $key . ']":{';
-            $messageJs .= '"' . $this->dataWrap . '[' . $key . ']":{';
-
-            $countR = count($rule);
-            foreach ($rule as $keyR => $vRule) {
-                $messageJs .= $vRule[0] . ':"' . $vRule[1] . '"';
-
-                if ($vRule[0] == 'required'
-                    || $vRule[0] == 'email'
-                    || $vRule[0] == 'url'
-                    || $vRule[0] == 'digits'
-                    || $vRule[0] == 'number'
-                ) {
-                    $ruleJs .= $vRule[0] . ':true';
-
-                } elseif ($vRule[0] == 'minlength'
-                    || $vRule[0] == 'maxlength'
-                    || $vRule[0] == 'max'
-                    || $vRule[0] == 'min'
-                ) {
-                    $ruleJs .= $vRule[0] . ':' . $vRule[2];
-                } elseif ($vRule[0] == 'rangelength'
-                    || $vRule[0] == 'range'
-                ) {
-                    $ruleJs .= $vRule[0] . ':[' . $vRule[2] . ',' . $vRule[3] . ']';
-                } elseif ($vRule[0] == 'minlength') {
-                    $ruleJs .= $vRule[0] . ':' . $vRule[2];
-                } elseif ($vRule[0] == 'date') {
-                    $ruleJs .= $vRule[0] . ':"' . $vRule[2] . '"';
-                } else {
-                    $ruleJs .= $vRule[0] . ':"' . $vRule[2] . '"';
-                }
-
-                if ($keyR < $countR - 1) {
-                    $ruleJs .= ',';
-                    $messageJs .= ',';
-                }
-
-            }
-            $ruleJs .= '}';
-            $messageJs .= '}';
-            if ($i < $countA - 1) {
-                $ruleJs .= ',';
-                $messageJs .= ',';
-            }
-            $i++;
-        }
-
-        $js = <<< EOF
-    var {$this->dataWrap}_validate = $("form").validate({
-        errorElement:'span',
-        errorClass: "has-error",
-        rules: {
-            {$ruleJs}
-        },
-        messages: {
-            {$messageJs}
-        }
-    });
-EOF;
-        echo $js;
     }
 
     public function getError() {
