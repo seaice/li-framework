@@ -161,7 +161,6 @@ abstract class Model implements \ArrayAccess {
             $this->_criteria['with'] = $with;
         }
 
-
         return $this;
     }
 
@@ -212,8 +211,11 @@ abstract class Model implements \ArrayAccess {
      * @param mixed criteria find condition
      */
     public function findAll($criteria = array()) {
-        if (is_array($criteria) && !empty($criteria)) {
-            $this->_criteria = array_merge($this->_criteria, $criteria);
+        if($criteria instanceof Criteria) {
+            $criteria = $criteria->getCriteria();
+        }
+        if ((is_array($criteria)) && !empty($criteria)) {
+            $this->_criteria = array_merge_recursive($this->_criteria, $criteria);
         }
 
         $this->_criteria['statement'] = 'select';
@@ -223,6 +225,10 @@ abstract class Model implements \ArrayAccess {
     }
 
     public function count($criteria = array()) {
+        if($criteria instanceof Criteria) {
+            $criteria = $criteria->getCriteria();
+        }
+
         if (is_array($criteria) && !empty($criteria)) {
             $this->_criteria = array_merge_recursive($this->_criteria, $criteria);
         }
@@ -689,9 +695,9 @@ abstract class Model implements \ArrayAccess {
             if (isset($_GET[$args[0]]) && !empty($_GET[$args[0]])) {
                 $this->where($args[0], $_GET[$args[0]]);
             }
-        } else if ($num_args == 2) {
+        } else if ($num_args == 2 && !empty($args[1])) {
             $this->where($args[0], $args[1]);
-        } else if ($num_args == 3) {
+        } else if ($num_args == 3 && !empty($args[2])) {
             $this->where($args[0], $args[1], $args[2]);
         }
     }
@@ -820,7 +826,7 @@ abstract class Model implements \ArrayAccess {
         return array();
     }
 
-    protected function getCriteria() {
+    public function getCriteria() {
         return $this->_criteria;
     }
 

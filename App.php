@@ -44,6 +44,7 @@ class App
         'Li\GridView' => '/GridView.php',
         'Li\Pagination' => '/Pagination.php',
         'Li\Validate' => '/Validate.php',
+        'Li\DataProvider' => '/DataProvider.php',
 
         'Li\Log' => '/Log.php',
         'Li\Session' => '/Session.php',

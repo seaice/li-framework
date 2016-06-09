@@ -70,6 +70,8 @@ class GridView {
         'criteria'=>[],
     ];
 
+    public $dataProvider;
+
 
     // 全局控制筛选
     public $filter=true;
@@ -82,32 +84,38 @@ class GridView {
      *
      * @return mixed the gridview
      */
-    static public function init($controller, $model, $params=array()) {
-        return new self($controller, $model, $params);
+    static public function init($controller, $dataProvider, $params=array()) {
+        return new self($controller, $dataProvider, $params);
     }
 
-    public function __construct($controller, $model, $params=null) {
+    public function __construct($controller, $dataProvider, $params=null) {
         $this->params=array_merge($this->params,$params);
 
         $this->criteria=$this->params['criteria'];
-        $this->reset=$controller->url();
+        $this->reset = $controller->url();
+        $this->dataProvider = $dataProvider;
         $this->controller = $controller;
-        $this->model = $model;
-        $this->pagination =  new Pagination($this->model,$this->params['criteria']);
+        $this->data = $this->dataProvider->getData();
+        $this->pagination =  $this->dataProvider->getPagination();
 
+        $this->columns = $this->getColumns();
+    }
+
+
+    public function getColumns() {
+        $columns = [];
         if(empty($this->params['columns'])) {
-            $cols = $model->alias();
+            $cols = $this->dataProvider->model->alias();
             foreach($cols as $key => $value) {
                 $tmp['name'] = $key;
                 $tmp['alias'] = $value;
                 $tmp['filter'] = true;
 
-                $this->params['columns'][] = $tmp;
-                unset($tmp);
+                $columns[] = $tmp;
             }
 
-            $this->params['columns'][] = array(
-                'alias'=>'操作',
+            $columns[] = array(
+                'alias'=>'操作', 
                 'buttons'=>array(
                     array(
                         'name'=>'编辑',
@@ -123,7 +131,6 @@ class GridView {
                 )
             );
         } else {
-            $columns = [];
             foreach($this->params['columns'] as $value) {
                 $column = [];
                 $column['filter'] = true;
@@ -145,10 +152,9 @@ class GridView {
                     } 
                 }
 
-                if (!isset($value['alias']))
-                {
-                    if(isset($model->alias()[$column['name']]))
-                        $column['alias'] = $model->alias()[$column['name']];
+                if (!isset($value['alias'])) {
+                    if(isset($this->dataProvider->model->alias()[$column['name']]))
+                        $column['alias'] = $this->dataProvider->model->alias()[$column['name']];
                     else
                         $column['alias'] = $column['name'];
                 } else {
@@ -159,8 +165,8 @@ class GridView {
                 $columns[] = $column;
             }
         }
-        $this->columns = $columns;
-        $this->data = $this->getData();
+
+        return $columns;
     }
 
     /**
@@ -212,14 +218,8 @@ class GridView {
      */
 
     public function getData() {
-        if(empty($this->criteria['order'])) {
-            $this->criteria['order'] = $this->model->pk.' DESC';
-        }
+        $data = $this->dataProvider->getData();
 
-        $this->pagination->init($this->criteria);
-
-        $this->criteria['limit'] = ($this->pagination->currentPage-1)*$this->pagination->pageSize.','.$this->pagination->pageSize;
-        $data = $this->model->search($this->criteria);
         unset($value);
         foreach($data as &$value) {
             foreach($this->columns as $column) {
