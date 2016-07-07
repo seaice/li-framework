@@ -104,9 +104,10 @@ class App
     {
         $this->_initRegister();
 
-
-        $this->route = Route::instance()->init();
-        $this->controller = Controller::create($this->route);
+        if(false === IS_CLI) {
+            $this->route = Route::instance()->init();
+            $this->controller = Controller::create($this->route);
+        }
     }
 
     /**

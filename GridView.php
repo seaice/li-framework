@@ -95,10 +95,10 @@ class GridView {
         $this->reset = $controller->url();
         $this->dataProvider = $dataProvider;
         $this->controller = $controller;
-        $this->data = $this->dataProvider->getData();
+        $this->columns = $this->getColumns();
+        $this->data = $this->getData();
         $this->pagination =  $this->dataProvider->getPagination();
 
-        $this->columns = $this->getColumns();
     }
 
 
@@ -153,7 +153,8 @@ class GridView {
                 }
 
                 if (!isset($value['alias'])) {
-                    if(isset($this->dataProvider->model->alias()[$column['name']]))
+                    // debug($this->dataProvider);die;
+                    if($this->dataProvider instanceof DataProvider && isset($this->dataProvider->model->alias()[$column['name']]))
                         $column['alias'] = $this->dataProvider->model->alias()[$column['name']];
                     else
                         $column['alias'] = $column['name'];
@@ -219,7 +220,6 @@ class GridView {
 
     public function getData() {
         $data = $this->dataProvider->getData();
-
         unset($value);
         foreach($data as &$value) {
             foreach($this->columns as $column) {
@@ -243,15 +243,18 @@ class GridView {
     private function _getButtons($buttons, $row) {
         $html = '';
         foreach($buttons as $value) {
-            $value['options']['class']='gridview-'.$value['action'];
             $tmp='<a  href="';
+            if(isset($value['url'])) {
+                $tmp .= $this->evaluateExpression($value['url'], array('data'=>$row));
+            } else {
+                $value['options']['class']='gridview-'.$value['action'];
+                $tmp.=url().$this->controller->id.'/'.$value['action'].'?id='.$row['id'].'&from='.urlencode($_SERVER['REQUEST_URI']);
+            }
 
-            $tmp.=url().$this->controller->id.'/'.$value['action'].'?id='.$row['id'].'&from='.urlencode($_SERVER['REQUEST_URI']).'"';
-
-            if (is_array($value['options']) && !empty($value['options'])) {
+            if (isset($value['options']) && is_array($value['options']) && !empty($value['options'])) {
                 $tmp.=$this->_getOptions($value['options']);
             }
-            $tmp.='>'.$value['name'].'</a>&nbsp;&nbsp;';
+            $tmp.='">'.$value['name'].'</a>&nbsp;&nbsp;';
 
             $html.=$tmp;
         }

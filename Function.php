@@ -7,6 +7,17 @@ function debug($m) {
 }
 
 /**
+ * 引入第三方库
+ * @return [type] [description]
+ */
+function import($class) {
+    if(!class_exists($class)) {
+        $file = PATH_APP . 'core' . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . $class.'.php';
+        require($file);
+    } 
+}
+
+/**
  * 获取model
  * @return [type] [description]
  */

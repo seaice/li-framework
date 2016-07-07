@@ -437,7 +437,6 @@ abstract class Model implements \ArrayAccess {
             $sql = 'DELETE FROM `' . $this->getTable() . '`';
             $sql .= $sqlConditon;
         }
-
         $this->_criteria['sql'] = $sql;
     }
 
@@ -479,6 +478,7 @@ abstract class Model implements \ArrayAccess {
     protected function populateRecord($attributes, $reset=true) {
         if ($attributes !== false) {
             $record = $this->instantiate($attributes);
+            $record->_isNew = false;
             $record->init();
             if ($this->_events['afterFind']) {
                 $record->afterFind();
@@ -584,17 +584,26 @@ abstract class Model implements \ArrayAccess {
         if ($this->_events['beforeSave']) {
             $this->beforeSave();
         }
+        $pk = $this->getPk();
 
-        $this->_criteria['statement'] = 'insert';
-        $this->_criteria['field'] = array();
+        if($this->_isNew) {
+            $this->_criteria['statement'] = 'insert';
+            $this->_criteria['field'] = array();
 
-        foreach ($this->attributes as $key => $value) {
-            $this->_criteria['field'][] = $key;
-            $this->_criteria['values'][] = array(':' . $key, $value);
+            foreach ($this->attributes as $key => $value) {
+                $this->_criteria['field'][] = $key;
+                $this->_criteria['values'][] = array(':' . $key, $value);
+            }
+        } else {
+            $this->_criteria['statement'] = 'update';
+            $this->where($pk, $this->$pk);
+            $this->_criteria['data'] = $this->attributes;
         }
-
         $this->build();
         $ret = $this->exec();
+        if($this->_isNew) {
+            $this->$pk = $this->getLastId();
+        }
         if ($this->_events['afterSave']) {
             $this->afterSave();
         }
@@ -717,16 +726,16 @@ abstract class Model implements \ArrayAccess {
         return $this;
     }
 
-    protected function page($page, $pageSize = 10) {
+    public function page($page, $pageSize = 10) {
         return $this->limit(($page - 1) * $pageSize, $pageSize);
     }
 
-    protected function limit($offset, $row_count) {
+    public function limit($offset, $row_count) {
         $this->_criteria['limit'] = "$offset, $row_count";
         return $this;
     }
 
-    protected function field($field) {
+    public function field($field) {
         $this->_criteria['field'] = $field;
         return $this;
     }
@@ -806,8 +815,9 @@ abstract class Model implements \ArrayAccess {
         $rule = $this->rules();
         if (isset($this->validator) && $this->validator instanceof Validator) {
             $this->validator->getValidator();
-        } 
-        return '';
+        } else {
+            return '{}';
+        }
     }
 
     public function getErrors() {

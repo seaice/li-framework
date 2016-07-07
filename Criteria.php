@@ -9,6 +9,14 @@ class Criteria implements \ArrayAccess {
 
     }
 
+    public function __get($name) {
+        return $this->criteria[$name];
+    }
+
+    public function __set($name, $value) {
+        $this->criteria[$name] = $value;
+    }
+
     public function compare() {
         $argc = func_num_args();
         $argv = func_get_args();

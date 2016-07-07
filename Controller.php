@@ -13,8 +13,11 @@ abstract class Controller {
     public function __construct($id) {
         $this->id = $id;
         $this->layout = 'layout' . DIRECTORY_SEPARATOR . 'main';
+        $this->init();
         $this->initTemplate();
     }
+
+    public function init() {}
 
     /**
      * 创建一个控制器
