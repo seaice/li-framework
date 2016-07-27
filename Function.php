@@ -63,13 +63,11 @@ function s($service) {
  * @return [type]      [description]
  */
 function url($url = '') {
-    if (PATH_APP_REL == '\\') {
-        $pre = '';
-    } else {
-        $pre = PATH_APP_REL . '/';
+    $preUrl = str_replace('\\', '/', PATH_APP_REL);
+    if($preUrl === '/') {
+        $preUrl = '';
     }
-
-    return $pre . $url;
+    return $preUrl . $url;
 }
 
 /**

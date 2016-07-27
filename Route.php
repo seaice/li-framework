@@ -10,6 +10,7 @@ class Route
     private $_requestUri;
     private $_pathInfoOri;
     private $_pathInfo;
+    private $_urlFormat='get';
 
     public $caseSensitive = true;
 
@@ -33,6 +34,9 @@ class Route
 
     public function init()
     {
+        if(isset(App::app()->config['route']['urlFormat'])) {
+            $this->_urlFormat = App::app()->config['route']['urlFormat'];
+        }
         $this->_pathInfo = $this->parseUrl();
         return $this->_pathInfo;
     }
@@ -41,7 +45,14 @@ class Route
     {
         if($this->_pathInfo === null)
         {
-            $this->_pathInfoOri = $this->getPathInfo();
+            if($this->_urlFormat == 'path') {
+                $this->_pathInfoOri = $this->getPathInfo();
+            } else {
+                $this->_pathInfoOri = '/';
+                if(isset($_GET['r'])) {
+                    $this->_pathInfoOri = $_GET['r'];
+                }
+            }
             $this->_pathInfo = $this->parseRegular($this->_pathInfoOri);
         }
 
@@ -119,13 +130,15 @@ class Route
                 $pathInfo = substr($pathInfo, 0, $pos);
             
             $scriptUrl = $this->getScriptUrl();
-
-            if(strpos($pathInfo,$scriptUrl) === 0)
+            if(strpos($pathInfo,$scriptUrl) === 0) {
                 $pathInfo = substr($pathInfo, strlen($scriptUrl));
-            elseif(strpos($_SERVER['PHP_SELF'], $scriptUrl) === 0)
+            }
+            elseif(strpos($_SERVER['PHP_SELF'], $scriptUrl) === 0) {
                 $pathInfo = substr($_SERVER['PHP_SELF'], strlen($scriptUrl));
-            else
+            }
+            else {
                 throw new Exception('CHttpRequest is unable to determine the path info of the request.');
+            }
 
             $this->_pathInfo = trim($pathInfo,'/');
         }

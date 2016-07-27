@@ -64,7 +64,7 @@ abstract class Model implements \ArrayAccess {
     // const STAT = 'StatRelation';
 
     public $validator;
-    public $attributes; // 保存查询结果
+    protected $attributes = []; // 保存查询结果
     protected $_data; // 保存查询结果
     protected $_events = array(
         'beforeFind' => false,
@@ -116,7 +116,13 @@ abstract class Model implements \ArrayAccess {
     }
 
     public function __set($name, $value) {
-        $this->attributes[$name] = $value;
+        if($name == 'attributes' && is_array($value)) {
+            $this->attributes = array_merge($this->attributes, $value);
+        } else {
+            $this->attributes[$name] = $value;
+        }
+        // debug($name);
+        // die;
     }
 
     public function getDb() {
@@ -488,6 +494,7 @@ abstract class Model implements \ArrayAccess {
             }
             return $record;
         } else {
+            $this->reset();
             return null;
         }
     }
@@ -754,7 +761,7 @@ abstract class Model implements \ArrayAccess {
         return $this;
     }
 
-    protected function reset() {
+    public function reset() {
         $this->_criteria = array(
             'field' => '*',
             'condition' => array(),
@@ -864,5 +871,9 @@ abstract class Model implements \ArrayAccess {
     }
     public function offsetGet($offset) {
         return isset($this->attributes[$offset]) ? $this->attributes[$offset] : null;
+    }
+
+    public function getAttributes() {
+        return $this->attributes;
     }
 }

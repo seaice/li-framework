@@ -20,6 +20,7 @@ class App
         'defaultAction' => 'index',
         'import'=>array(),
         'route'=>array(),
+        'timezone'=>'Asia/Shanghai',
     );
 
     public $route;
@@ -104,8 +105,11 @@ class App
     {
         $this->_initRegister();
 
+        date_default_timezone_set($this->config['timezone']);
+
         if(false === IS_CLI) {
             $this->route = Route::instance()->init();
+
             $this->controller = Controller::create($this->route);
         }
     }
@@ -222,7 +226,7 @@ class App
             $errtype[E_STRICT] = 'runtime notice';
 
         if($errtype[$errno] != 'E_DEPRECATED') {
-            echo "[" . date('Y-m-d H:i:s') . "] PHP {$errtype[$errno]}:  $errstr in $errfile on $errline<br/>";
+            echo "[" . date('Y-m-d H:i:s', NOW) . "] PHP {$errtype[$errno]}:  $errstr in $errfile on $errline<br/>";
         }
     }
 
@@ -245,13 +249,14 @@ class App
      */
     public function url($controller,$action,$param)
     {
+        $path = url();
         if(empty($param))
         {
-            return PATH_APP_REL.'/'.$controller.'/'.$action;
+            return $path . '/' . $controller.'/'.$action;
         }
         else
         {
-            return PATH_APP_REL.'/'.$controller.'/'.$action.'?'.http_build_query($param);
+            return $path . '/' . $controller.'/'.$action.'?'.http_build_query($param);
         }
     }
     public static function setLocale($locale)

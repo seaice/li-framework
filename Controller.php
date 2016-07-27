@@ -151,9 +151,16 @@ abstract class Controller {
         return $template . '.html';
     }
 
-    public function outputJSON($errno, $data = array()) {
+    public function outputJSON($errno, $data = array(), $model=false) {
+        if($model) {
+            foreach($data as $value) {
+                $ret[] = $value->getAttributes();
+            }
+            $data = $ret;
+        }
+
         $ret = array(
-            'errno' => $errno ? CHAR_TRUE : CHAR_FALSE,
+            'errno' => $errno ? "0" : "1",
             'data' => $data,
         );
 
@@ -177,7 +184,7 @@ abstract class Controller {
 
         $url = $uri . '/' . implode('/', $urlParam);
 
-        redirect(App::app()->config['domain'] . url() . $url);
+        redirect(App::app()->config['domain'] . url() . '/' . $url);
 
         // debug(implode('/', $params));
         // debug(\http_build_query($argv[0], '','/'));

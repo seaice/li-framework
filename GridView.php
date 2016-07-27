@@ -243,14 +243,17 @@ class GridView {
     private function _getButtons($buttons, $row) {
         $html = '';
         foreach($buttons as $value) {
+            if(isset($value['audit']) && $value['audit']($row) == 0) {
+                continue;
+            }
             $tmp='<a  href="';
             if(isset($value['url'])) {
                 $tmp .= $this->evaluateExpression($value['url'], array('data'=>$row));
             } else {
                 $value['options']['class']='gridview-'.$value['action'];
-                $tmp.=url().$this->controller->id.'/'.$value['action'].'?id='.$row['id'].'&from='.urlencode($_SERVER['REQUEST_URI']);
+                $tmp.=url().'/'.$this->controller->id.'/'.$value['action'].'?id='.$row['id'].'&from='.urlencode($_SERVER['REQUEST_URI']);
             }
-
+            $tmp .= '"';
             if (isset($value['options']) && is_array($value['options']) && !empty($value['options'])) {
                 $tmp.=$this->_getOptions($value['options']);
             }

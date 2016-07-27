@@ -17,6 +17,5 @@ define('PATH_BASE', PATH_VENDOR . '../'); // 整个代码的根目录
 define('PATH_LI', dirname(__FILE__)); // 框架目录(绝对)
 define('PATH_APP_REL', dirname($_SERVER['SCRIPT_NAME'])); // 当前APP的相对路径
 
-
 include PATH_VENDOR . "autoload.php";
 \Li\App::init()->run();
