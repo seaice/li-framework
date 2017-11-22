@@ -19,7 +19,8 @@ class DataProvider implements \Iterator, \ArrayAccess {
         $this->config = $config;
 
         if(!(isset($this->config['pagination']) && $this->config['pagination'] === false)) {
-            $this->_pagination =  new Pagination($this->model, $config);
+            $this->_pagination =  new Pagination();
+            $this->_pagination->init($this->model, $this->config['criteria']);
         }
 
         if(isset($this->config['pagination']) && $this->config['pagination'] === false) {

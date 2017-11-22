@@ -52,10 +52,11 @@ order       // 排序
 sql         // 最终解析的sql
  */
 
-abstract class Model implements \ArrayAccess {
-    protected $db = 'default'; // 数据库名
-    protected $table; // 表名
-    protected $pk = 'id'; // 主键
+abstract class Model implements \ArrayAccess
+{
+    protected $_db = 'default'; // 数据库名
+    protected $_table; // 表名
+    protected $_pk = 'id'; // 主键
 
     const BELONGS_TO = 'BelongsToRelation';
     const HAS_ONE = 'HasOneRelation';
@@ -63,9 +64,10 @@ abstract class Model implements \ArrayAccess {
     const MANY_MANY = 'ManyManyRelation';
     // const STAT = 'StatRelation';
 
-    public $validator;
+    protected $_validator;
     protected $attributes = []; // 保存查询结果
     protected $_data; // 保存查询结果
+    protected $_field;
     protected $_events = array(
         'beforeFind' => false,
         'beforeDelete' => false,
@@ -77,32 +79,30 @@ abstract class Model implements \ArrayAccess {
 
     protected $_isNew = true;
     protected $_scenario = 'default';
+    protected $_fetchStyle = \PDO::FETCH_ASSOC;
 
     protected static $_models = array();
 
-    protected $_criteria = array(
-        'field' => '*',
-        'condition' => array(),
-        'values' => array(),
-        'with' => [],
-    );
+    protected $_criteria;
 
     private $_position = 0;
 
-    public function __construct($scenario = null) {
+    public function __construct($scenario = null)
+    {
         if (!empty($scenario)) {
             $this->_scenario = $scenario;
         }
     }
 
-    public function __get($name) {
-        if (isset($this->attributes[$name])) {
-            return $this->attributes[$name];
+    public function __get($name)
+    {
+        if (isset($this->$name)) {
+            return $this->$name;
         }
 
         if (array_key_exists($name, $this->relations())) {
             $relation = $this->relations()[$name];
-            if($relation[1] == 'BelongsToRelation') {
+            if ($relation[1] == 'BelongsToRelation') {
                 $this->attributes[$name] = $relation[2]::model()->find([
                     'condition' => [
                         [$relation[3], '=', $this->$relation[0]],
@@ -115,32 +115,48 @@ abstract class Model implements \ArrayAccess {
         return null;
     }
 
-    public function __set($name, $value) {
-        if($name == 'attributes' && is_array($value)) {
-            $this->attributes = array_merge($this->attributes, $value);
-        } else {
-            $this->attributes[$name] = $value;
+    // public function __set($name, $value) {
+    //     if($name == 'attributes' && is_array($value)) {
+    //         $this->attributes = array_merge($this->attributes, $value);
+    //     } else {
+    //         $this->attributes[$name] = $value;
+    //     }
+    // }
+
+    public function __isset($name)
+    {
+        return isset($this->attributes[$name]);
+    }
+
+    public function getDb()
+    {
+        return $this->_db;
+    }
+
+    public function getTable()
+    {
+        if (empty($this->_table)) {
+            $this->_table = strtolower(get_class($this));
         }
-        // debug($name);
-        // die;
+        return $this->_table;
     }
 
-    public function getDb() {
-        return $this->db;
+    public function getPk()
+    {
+        return $this->_pk;
     }
 
-    public function getTable() {
-        if (empty($this->table)) {
-            $this->table = strtolower(get_class($this));
+    public function getCriteria($createIfNull = false)
+    {
+        if($createIfNull || $this->_criteria === null) {
+            $this->_criteria = new Criteria();
         }
-        return $this->table;
+
+        return $this->_criteria;
     }
 
-    public function getPk() {
-        return $this->pk;
-    }
-
-    public static function model($className = __CLASS__) {
+    public static function model($className = __CLASS__)
+    {
         if (isset(self::$_models[$className])) {
             return self::$_models[$className];
         } else {
@@ -149,13 +165,31 @@ abstract class Model implements \ArrayAccess {
         }
     }
 
-    public function relations() {
+    /**
+     * [relations description]
+     *
+     *
+     * return [
+     *     '关系名' => ['当前表列名', 关系, '关联model名', '关联表列名'］
+     * ]
+     * @return [type] [description]
+     */
+    public function relations()
+    {
         return [];
     }
+
+
+    /**
+     * [with description]
+     * ->with('关系名', '关系名')
+     * @return [type] [description]
+     */
 
     public function with() {
         if(func_num_args()>0)
         {
+            $this->_fetchStyle = \PDO::FETCH_NUM;
             $with=func_get_args();
 
             foreach($with as $name) {
@@ -164,24 +198,79 @@ abstract class Model implements \ArrayAccess {
                 }
             }
 
-            $this->_criteria['with'] = $with;
+            $this->getCriteria()->with = $with;
         }
 
         return $this;
     }
 
-    protected function _transKeys($table, $keys) {
-        $field = [];
-        foreach($keys as $key) {
-            $field[] = "{$table}.{$key} as {$table}_{$key}";
+    // protected function _transKeys($table, $keys)
+    // {
+    //     $field = [];
+
+    //     if(!is_array($keys)) {
+    //         $keys = explode(',', $keys);
+    //     }
+
+    //     foreach ($keys as $key) {
+    //         $key = trim($key);
+    //         $field[] = "{$table}.{$key} as {$table}_{$key}";
+    //     }
+    //     return $field;
+    // }
+    protected function _transKeys()
+    {
+        $ret_fields = [];
+        $arr_fields = array_map('trim', explode(',', $this->_criteria->field));
+
+        if (empty($this->_criteria['with'])) {
+            if(in_array('*', $arr_fields)) {
+                $ret_fields =  array_keys($this->alias());
+            } else {
+                $ret_fields = $arr_fields;
+            }
+
+        } else {
+            if(in_array('*', $arr_fields)) {
+                foreach($this->alias() as $col => $alias) {
+                    $ret_fields[] = $this->getTable() . '.' . $col;
+                }
+
+                foreach($this->_criteria['with'] as $rela) {
+                    $model = M($this->relations()[$rela][2]);
+                    foreach($model->alias() as $col => $alias) {
+                        $ret_fields[] = $model->getTable() . '.' . $col;
+                    }
+                }
+            } else {
+                foreach($arr_fields as $field) {
+                    list($table, $field) = explode('.', $field);
+
+                    if($table == $this->getTable()) {
+                        $model = $this;
+                    } else {
+                        $model = M($this->getModelName($table));
+                    }
+
+                    if($field == '*') {
+                        foreach($model->alias() as $col => $alias) {
+                            $ret_fields[] = $table . '.' . $col;
+                        }
+                    } else {
+                        $ret_fields[] = $table . '.' . $field;
+                    }
+                }
+            }
         }
-        return $field;
+
+        return $ret_fields;
     }
 
     /**
      * 唤起事件
      */
-    public function event($event) {
+    public function event($event)
+    {
         if (!isset($this->_events[$event])) {
             throw new Exception("不支持事件：" . $event);
         }
@@ -192,55 +281,49 @@ abstract class Model implements \ArrayAccess {
     /**
      * @return mixed null or array
      */
-    public function find($criteria = array()) {
-        if (is_array($criteria) && !empty($criteria)) {
-            $this->_criteria = array_merge($this->_criteria, $criteria);
-        }
+    public function find($criteria = null)
+    {
+        $this->getCriteria()->merge($criteria);
+        
+        $this->_criteria->statement = 'select';
+        $this->_criteria->limit = 1;
 
-        $this->_criteria['statement'] = 'select';
-        $this->_criteria['limit'] = 1;
         $this->build();
-        return $this->populateRecord($this->_query());
+
+        return $this->populateRecord($this->_query($this->_fetchStyle));
     }
 
     /**
      * @return mixed null or model
      */
-    public function findByPk($pk) {
+    public function findByPk($pk)
+    {
+        $this->getCriteria()->where($this->_pk, $pk);
+
         $this->_criteria['statement'] = 'select';
-        $this->_criteria['condition'][] = array($this->pk, $pk);
         $this->build();
-        return $this->populateRecord($this->_query());
+        return $this->populateRecord($this->_query($this->_fetchStyle));
     }
 
     /**
      * @param mixed criteria find condition
      */
-    public function findAll($criteria = array()) {
-        if($criteria instanceof Criteria) {
-            $criteria = $criteria->getCriteria();
-        }
-        if ((is_array($criteria)) && !empty($criteria)) {
-            $this->_criteria = array_merge_recursive($this->_criteria, $criteria);
-        }
+    public function findAll($criteria = null)
+    {
+        $this->getCriteria()->merge($criteria);
 
         $this->_criteria['statement'] = 'select';
         $this->build();
 
-        return $this->populateRecords($this->_queryAll());
+        return $this->populateRecords($this->_queryAll($this->_fetchStyle));
     }
 
-    public function count($criteria = array()) {
-        if($criteria instanceof Criteria) {
-            $criteria = $criteria->getCriteria();
-        }
+    public function count($criteria = array())
+    {
+        $this->getCriteria()->merge($criteria);
 
-        if (is_array($criteria) && !empty($criteria)) {
-            $this->_criteria = array_merge_recursive($this->_criteria, $criteria);
-        }
-
-        $this->_criteria['statement'] = 'select';
-        $this->_criteria['field'] = 'COUNT(*) as `count`';
+        $this->_criteria->statement = 'select';
+        $this->_criteria->field = 'COUNT(*) as `count`';
 
         $this->build();
         $ret = $this->_query()['count'];
@@ -248,10 +331,9 @@ abstract class Model implements \ArrayAccess {
         return $ret;
     }
 
-    public function update($data, $criteria = null) {
-        if (is_array($criteria) && !empty($criteria)) {
-            array_merge($this->_criteria, $criteria);
-        }
+    public function update($data, $criteria = null)
+    {
+        $this->getCriteria()->merge($criteria);
 
         $this->_criteria['statement'] = 'update';
         $this->_criteria['data'] = $data;
@@ -260,14 +342,15 @@ abstract class Model implements \ArrayAccess {
         return $this->exec();
     }
 
-    public function updateByPk($pk, $data) {
+    public function updateByPk($pk, $data)
+    {
         if (empty($data) && !is_array($data)) {
             return false;
         }
 
         $this->_criteria['statement'] = 'update';
 
-        $this->_criteria['condition'][] = array($this->pk, $pk);
+        $this->_criteria['condition'][] = array($this->_pk, $pk);
 
         $this->_criteria['data'] = $data;
 
@@ -275,14 +358,12 @@ abstract class Model implements \ArrayAccess {
         return $this->exec();
     }
 
-    public function delete($criteria = null) {
+    public function delete($criteria = null)
+    {
         if ($this->_events['beforeDelete']) {
             $this->beforeDelete();
         }
-        if (is_array($criteria) && !empty($criteria)) {
-            array_merge($this->_criteria, $criteria);
-        }
-
+        $this->getCriteria()->merge($criteria);
         $this->_criteria['statement'] = 'delete';
 
         $this->build();
@@ -297,12 +378,13 @@ abstract class Model implements \ArrayAccess {
         return true;
     }
 
-    public function deleteByPk($pk) {
+    public function deleteByPk($pk)
+    {
         if ($this->_events['beforeDelete']) {
             $this->beforeDelete();
         }
         $this->_criteria['statement'] = 'delete';
-        $this->_criteria['condition'][] = array($this->pk, $pk);
+        $this->_criteria['condition'][] = array($this->_pk, $pk);
         $this->build();
 
         if (!$this->exec()) {
@@ -315,14 +397,28 @@ abstract class Model implements \ArrayAccess {
         return true;
     }
 
-    protected function build() {
+    /**
+     * 返回结果数组以$index为key
+     * @param  [type] $index [description]
+     * @return [type]        [description]
+     */
+    public function index($index)
+    {
+        $this->getCriteria()->index = $index;
+
+        return $this;
+    }
+
+    protected function build()
+    {
         $sqlConditon = '';
-        if (is_array($this->_criteria['condition'])
-            && !empty($this->_criteria['condition'])
+
+        if (is_array($this->_criteria->condition)
+            && !empty($this->_criteria->condition)
         ) {
             $i = 0;
-            $conditon = null;
-            foreach ($this->_criteria['condition'] as $value) {
+            $condition = null;
+            foreach ($this->_criteria->condition as $value) {
                 if (is_array($value)) {
                     if (count($value) == 3) {
                         $value[1] = strtolower($value[1]);
@@ -334,52 +430,48 @@ abstract class Model implements \ArrayAccess {
                                 if ($key < $inCount - 1) {
                                     $in .= ',';
                                 }
-                                $this->_criteria['values'][] = array(':' . $i, $inValue);
+                                $this->_criteria->values[] = array(':' . $i, $inValue);
                                 $i++;
                             }
 
-                            $conditon[] = '(' . $value[0] . ' IN ' . '(' . $in . '))';
-                        } else if ($value[1] == 'between') {
-                            $conditon[] = '(' . $value[0] . ' BETWEEN ' . ':' . $i . ' AND :' . ($i + 1) . ')';
-                            $this->_criteria['values'][] = array(':' . $i, $value[2][0]);
-                            $this->_criteria['values'][] = array(':' . ($i + 1), $value[2][1]);
+                            $condition[] = '(' . $value[0] . ' IN ' . '(' . $in . '))';
+                        } elseif ($value[1] == 'between') {
+                            $condition[] = '(' . $value[0] . ' BETWEEN ' . ':' . $i . ' AND :' . ($i + 1) . ')';
+                            $this->_criteria->values[] = array(':' . $i, $value[2][0]);
+                            $this->_criteria->values[] = array(':' . ($i + 1), $value[2][1]);
                             $i += 2;
                         } else {
-                            $conditon[] = '(' . $value[0] . ' ' . $value[1] . ' ' . ':' . $i . ')';
-                            $this->_criteria['values'][] = array(':' . $i, $value[2]);
+                            $condition[] = '(' . $value[0] . ' ' . $value[1] . ' ' . ':' . $i . ')';
+                            $this->_criteria->values[] = array(':' . $i, $value[2]);
                         }
-                    } else if (count($value) == 2) {
-                        $conditon[] = '(' . $value[0] . '=:' . $i . ')';
-                        $this->_criteria['values'][] = array(':' . $i, $value[1]);
                     }
                     $i++;
                 } else {
-                    $conditon[] = $value;
+                    $condition[] = $value;
                 }
             }
 
-            $sqlConditon .= ' WHERE ' . implode(' AND ', $conditon);
+            $sqlConditon .= ' WHERE ' . implode(' AND ', $condition);
         }
 
         if ($this->_criteria['statement'] == 'select') {
-            if(!empty($this->_criteria['with'])) {
-                $fields = $this->_transKeys($this->getTable(), array_keys($this->alias()));
+            $this->_field = $this->_transKeys();
+            
+            if (!empty($this->_criteria['with'])) {
 
-                foreach($this->_criteria['with'] as $name) {
-                    $relation = $this->relations()[$name];
+                foreach ($this->_criteria['with'] as $rela) {
+                    $relation = $this->relations()[$rela];
 
-                    $this->leftJoin($relation[2]::model()->getTable(), $this->getTable() . '.' . $relation[0] . '=' . $relation[2]::model()->getTable() . '.'. $relation[3]);
-
-                    $fields = array_merge($fields , $this->_transKeys($relation[2]::model()->getTable(), array_keys($relation[2]::model()->alias())));
+                    $this->leftJoin(M($relation[2])->getTable(), $this->getTable() . '.' . $relation[0] . '=' . M($relation[2])->getTable() . '.'. $relation[3]);
                 }
 
-                $this->_criteria['field'] = implode(',', $fields);                  
+                $this->_criteria['field'] = implode(',', $this->_field);
             }
 
             $sql = 'SELECT ' . $this->_criteria['field'] . ' FROM `' . $this->getTable() . '`';
-            
-            if (!empty($this->_criteria['join'])) {
-                foreach ($this->_criteria['join'] as $key => $value) {
+
+            if (!empty($this->_criteria->join)) {
+                foreach ($this->_criteria->join as $key => $value) {
                     $sql .= $value;
                 }
             }
@@ -401,7 +493,7 @@ abstract class Model implements \ArrayAccess {
             if (!empty($this->_criteria['limit'])) {
                 $sql .= ' LIMIT ' . $this->_criteria['limit'];
             }
-        } else if ($this->_criteria['statement'] == 'update') {
+        } elseif ($this->_criteria['statement'] == 'update') {
             $sql = 'UPDATE `' . $this->getTable() . '` SET';
 
             $countData = count($this->_criteria['data']);
@@ -411,7 +503,7 @@ abstract class Model implements \ArrayAccess {
                     $sql .= '`'. $key . '`='.$value;
                 } else {
                     $sql .= ' `' . $key . '`=:' . $key;
-                    $this->_criteria['values'][] = array(':' . $key, $value);
+                    $this->_criteria->values[] = array(':' . $key, $value);
                 }
 
                 if ($iData < $countData - 1) {
@@ -422,7 +514,7 @@ abstract class Model implements \ArrayAccess {
             }
 
             $sql .= $sqlConditon;
-        } else if ($this->_criteria['statement'] == 'insert') {
+        } elseif ($this->_criteria['statement'] == 'insert') {
             $sql = 'INSERT INTO `' . $this->getTable() . '` (';
             $sqlField = '';
             $sqlValue = '';
@@ -439,129 +531,145 @@ abstract class Model implements \ArrayAccess {
             }
 
             $sql .= $sqlField . ') VALUES (' . $sqlValue . ')';
-        } else if ($this->_criteria['statement'] == 'delete') {
+        } elseif ($this->_criteria['statement'] == 'delete') {
             $sql = 'DELETE FROM `' . $this->getTable() . '`';
             $sql .= $sqlConditon;
         }
-        $this->_criteria['sql'] = $sql;
+
+        $this->_criteria->sql = $sql;
     }
 
-    public function getCondition() {
-        return $this->_criteria['condition'];
+    public function getCondition()
+    {
+        return $this->_criteria->condition;
     }
 
-    private function _query($fetchStyle = \PDO::FETCH_ASSOC) {
+    private function _query($fetchStyle = \PDO::FETCH_ASSOC)
+    {
         if ($this->_events['beforeFind']) {
             $this->beforeFind();
         }
         $dbName = $this->getDb();
-        Db::db()->$dbName->prepare($this->_criteria['sql']);
-        Db::db()->$dbName->bindValues($this->_criteria['values']);
+        Db::db()->$dbName->prepare($this->_criteria->sql);
+        if(isset($this->_criteria->values) && is_array($this->_criteria->values)) {
+            Db::db()->$dbName->bindValues($this->_criteria->values);
+        }
         return Db::db()->$dbName->fetch($fetchStyle);
     }
 
-    private function _queryAll($fetchStyle = \PDO::FETCH_ASSOC) {
+    private function _queryAll($fetchStyle = \PDO::FETCH_ASSOC)
+    {
         if ($this->_events['beforeFind']) {
             $this->beforeFind();
         }
         $dbName = $this->getDb();
-        Db::db()->$dbName->prepare($this->_criteria['sql']);
-        Db::db()->$dbName->bindValues($this->_criteria['values']);
+        Db::db()->$dbName->prepare($this->_criteria->sql);
+        if(isset($this->_criteria->values) && is_array($this->_criteria->values)) {
+            Db::db()->$dbName->bindValues($this->_criteria->values);
+        }
         return Db::db()->$dbName->fetchAll($fetchStyle);
     }
 
-    protected function init() {
-
+    protected function init()
+    {
     }
 
-    protected function instantiate($attributes) {
+    protected function instantiate($attributes)
+    {
         $class = get_class($this);
         $model = new $class();
-        $model->attributes = $attributes;
+
+        foreach ($attributes as $name=>$value) {
+            if (property_exists($model, $name)) {
+                throw new Exception('类中不允许有和表字段名相同的属性'.$name);
+            } else {
+                if(is_array($value)) {
+                    $model->$name = M($this->getModelName($name))->instantiate($value);
+                } else {
+                    $model->$name=$value;
+                }
+                $model->attributes[] = $name;
+            }
+        }
+
         return $model;
     }
 
-    protected function populateRecord($attributes, $reset=true) {
-        if ($attributes !== false) {
-            $record = $this->instantiate($attributes);
-            $record->_isNew = false;
-            $record->init();
-            if ($this->_events['afterFind']) {
-                $record->afterFind();
-            }
-            if($reset) {
-                $this->reset();
-            }
-            return $record;
+    protected function populateRecord($attributes, $reset=true)
+    {
+        $data = [];
+
+        if(empty($this->_criteria['with'])) {
+            $data = $attributes;
         } else {
-            $this->reset();
-            return null;
+            foreach($this->_field as $key => $field) {
+                list($table, $field) = explode('.', $field);
+
+                if($table == $this->getTable()) {
+                    $data[$field] = $attributes[$key];
+                } else {
+                    $data[$table][$field] = $attributes[$key];
+                }
+            }
+
         }
+
+
+        $record = $this->instantiate($data);
+        $record->_isNew = false;
+        $record->init();
+        if ($this->_events['afterFind']) {
+            $record->afterFind();
+        }
+        if ($reset) {
+            $this->reset();
+        }
+        return $record;
     }
 
-    protected function beforeFind() {
+    protected function beforeFind()
+    {
     }
-    protected function beforeDelete() {
+    protected function beforeDelete()
+    {
     }
-    protected function beforeSave() {
+    protected function beforeSave()
+    {
     }
-    protected function afterFind() {
+    protected function afterFind()
+    {
     }
-    protected function afterDelete() {
+    protected function afterDelete()
+    {
     }
-    protected function afterSave() {
+    protected function afterSave()
+    {
     }
 
     /**
      * 获得关联查询结果集中的数据
      * @return [type] [description]
      */
-    protected function _getRelationAttributes($data, $relation) {
-
+    protected function _getRelationAttributes($data, $relation)
+    {
     }
 
-    protected function populateRecords($data, $index = null) {
+    protected function populateRecords($data)
+    {
         $records = array();
-
-        if(!empty($this->_criteria['with'])) {
-            foreach($data as $value) {
-                if(!isset($records[$value[$this->getTable() . '_' . $this->pk]])) {
-                    $tmp = [];
-                    foreach ($this->alias() as $key => $alias) {
-                        $tmp[$key] = $value[$this->getTable() . '_' . $key];
-                    }
-
-                    if (($record = $this->populateRecord($tmp, false)) !== null) {
-                        $records[$value[$this->getTable() . '_' . $this->pk]] = $record;
-                    }
-                }
-
-                foreach($this->_criteria['with'] as $name) {
-                    $relation = $this->relations()[$name];
-                    $table = $relation[2]::model()->getTable();
-                    $tmp = [];
-                    foreach($relation[2]::model()->alias() as $key => $alias) {
-                        $tmp[$key] = $value[$table . '_' . $key];
-                    }
-
-                    if($relation[1] == self::BELONGS_TO) {
-                        $records[$this->pk][$name] = $tmp;
-                    } else if($relation[1] == self::HAS_ONE) {
-                        $records[$this->pk][$name] = $tmp;
-                    } else if($relation[1] == self::HAS_MANY) {
-                        $records[$this->pk][$name] = $tmp;
-                    } else if($relation[1] == self::MANY_MANY) {
-                        $records[$this->pk][$name] = $tmp;
-                    }
+        if (!empty($this->_criteria['with'])) {
+            foreach ($data as $value) {
+                if (($record = $this->populateRecord($value, false)) !== null) {
+                    $records[] = $record;
                 }
             }
         } else {
             foreach ($data as $attributes) {
                 if (($record = $this->populateRecord($attributes, false)) !== null) {
-                    if ($index === null) {
+                    if (!isset($this->_criteria->index)) {
                         $records[] = $record;
                     } else {
-                        $records[$record->$index] = $record;
+                        $records[$record->{$this->_criteria->index}] = $record;
                     }
                 }
             }
@@ -571,15 +679,17 @@ abstract class Model implements \ArrayAccess {
     }
 
 
-    protected function exec() {
+    protected function exec()
+    {
         $dbName = $this->getDb();
-        Db::db()->$dbName->prepare($this->_criteria['sql']);
-        Db::db()->$dbName->bindValues($this->_criteria['values']);
+        Db::db()->$dbName->prepare($this->_criteria->sql);
+        Db::db()->$dbName->bindValues($this->_criteria->values);
         $this->reset();
         return Db::db()->$dbName->execute();
     }
 
-    public function save($runValidation = true, $attributeNames = null) {
+    public function save($runValidation = true, $attributeNames = null)
+    {
         if ($runValidation === true) {
             if ($this->_isNew) {
                 if ($this->validate($this->_scenario)) {
@@ -593,13 +703,13 @@ abstract class Model implements \ArrayAccess {
         }
         $pk = $this->getPk();
 
-        if($this->_isNew) {
+        if ($this->_isNew) {
             $this->_criteria['statement'] = 'insert';
             $this->_criteria['field'] = array();
 
             foreach ($this->attributes as $key => $value) {
                 $this->_criteria['field'][] = $key;
-                $this->_criteria['values'][] = array(':' . $key, $value);
+                $this->_criteria->values[] = array(':' . $key, $value);
             }
         } else {
             $this->_criteria['statement'] = 'update';
@@ -608,7 +718,7 @@ abstract class Model implements \ArrayAccess {
         }
         $this->build();
         $ret = $this->exec();
-        if($this->_isNew) {
+        if ($this->_isNew) {
             $this->$pk = $this->getLastId();
         }
         if ($this->_events['afterSave']) {
@@ -617,79 +727,38 @@ abstract class Model implements \ArrayAccess {
         return $ret;
     }
 
-    public function getLastId() {
+    public function getLastId()
+    {
         $dbName = $this->getDb();
         return Db::db()->$dbName->getLastInsertID();
     }
-    /**
-     *
-     */
-    // public function where()
-    // {
-    //     $num_args = func_num_args();
-    //     $args = func_get_args();
-    //     if($num_args == 1)
-    //     {
-    //         foreach ($args[0] as $key => $value) {
-    //             $this->_criteria['condition'][] = $key.'=:'.$key;
-    //             $this->_criteria['values'][':'.$key] = $value;
-    //         }
-    //     }
-    //     else if($num_args == 2)
-    //     {
-    //         $this->_criteria['condition'][] = $args[0].'=:'.$args[0];
-    //         $this->_criteria['values'][':'.$args[0]] = $args[1];
-    //     }
-    //     else if($num_args == 3)
-    //     {
-    //         $this->_criteria['condition'][] = $args[0].$args[1].':'.$args[0];
-    //         $this->_criteria['values'][':'.$args[0]] = $args[2];
-    //     }
-
-    //     return $this;
-    // }
 
     /**
-     * ->whereSql('id>%d',array('6 OR 1=1','test or 1=1'))
+     * ->whereSql('id>%d and id < %d', 6, 9)
+     * 不推荐使用
      */
-
-    protected function whereSql($sql, $parse = null) {
-        if (!is_null($parse) && is_string($sql)) {
-            if (!is_array($parse)) {
-                $parse = func_get_args();
-                array_shift($parse);
-            }
-            $dbName = $this->getDb();
-            $parse = array_map(array(Db::db()->$dbName, 'quoteValue'), $parse);
-            $condition = vsprintf($sql, $parse);
-            $this->_criteria['condition'][] = $condition;
-        }
-
+    public function whereSql()
+    {
+        $this->getCriteria()->whereSql(...func_get_args());
         return $this;
     }
+
     /**
-     * 支持2或者3个参数
+     * 支持1,2,3个参数
      * $model->where('name','=','test')
      *       ->where('id','in',array(1,2,3))
      *       ->where('id=1 or id=2')
      *       ->where('score','>',10);
      *       ->where('score',8);
+     *       ->where( [
+     *           ['id','in',array(1,2,3)],
+     *           ['score','>',10],
+     *       ]
+     *       )
      */
-    public function where() {
-        $num_args = func_num_args();
-        $args = func_get_args();
-
-        // if($num_args == 1)
-        // {
-        //     $this->_criteria['condition'][]=$args[0];
-        // }
-
-        if ($num_args == 2) {
-            $this->_criteria['condition'][] = $args;
-        } else if ($num_args == 3) {
-            $this->_criteria['condition'][] = $args;
-        }
-
+    public function where()
+    {
+        $this->getCriteria()->where(...func_get_args());
         return $this;
     }
 
@@ -703,7 +772,8 @@ abstract class Model implements \ArrayAccess {
     //     return $this;
     // }
 
-    protected function filter() {
+    protected function filter()
+    {
         $num_args = func_num_args();
         $args = func_get_args();
 
@@ -711,73 +781,88 @@ abstract class Model implements \ArrayAccess {
             if (isset($_GET[$args[0]]) && !empty($_GET[$args[0]])) {
                 $this->where($args[0], $_GET[$args[0]]);
             }
-        } else if ($num_args == 2 && !empty($args[1])) {
+        } elseif ($num_args == 2 && !empty($args[1])) {
             $this->where($args[0], $args[1]);
-        } else if ($num_args == 3 && !empty($args[2])) {
+        } elseif ($num_args == 3 && !empty($args[2])) {
             $this->where($args[0], $args[1], $args[2]);
         }
     }
 
-    public function group($group) {
+    public function group($group)
+    {
         $this->_criteria['group'] = $group;
         return $this;
     }
 
-    public function order($order) {
-        $this->_criteria['order'] = $order;
+    public function order($order)
+    {
+        $this->getCriteria()->order = $order;
         return $this;
     }
 
-    protected function having($having) {
+    protected function having($having)
+    {
         $this->_criteria['having'] = $having;
         return $this;
     }
 
-    public function page($page, $pageSize = 10) {
+    public function page($page, $pageSize = 10)
+    {
+        $page = $page;
+        if ($page < 1) {
+            $page = 1;
+        }
         return $this->limit(($page - 1) * $pageSize, $pageSize);
     }
 
-    public function limit($offset, $row_count) {
-        $this->_criteria['limit'] = "$offset, $row_count";
+    public function limit($offset, $row_count)
+    {
+        $offset = intval($offset);
+        $row_count = intval($row_count);
+        $this->getCriteria()->limit = "$offset, $row_count";
+
         return $this;
     }
 
-    public function field($field) {
-        $this->_criteria['field'] = $field;
+    public function field($field)
+    {
+        $this->getCriteria()->field = $field;
         return $this;
     }
 
-    protected function join($table, $condition) {
-        $this->_criteria['join'][] = " INNER JOIN $table ON $condition";
+    protected function join($table, $condition)
+    {
+        $this->getCriteria()->join[] = " INNER JOIN $table ON $condition";
         return $this;
     }
 
-    protected function leftJoin($table, $condition) {
-        $this->_criteria['join'][] = " LEFT JOIN $table ON $condition";
+    protected function leftJoin($table, $condition)
+    {
+        $this->getCriteria()->join[] = " LEFT JOIN $table ON $condition";
         return $this;
     }
-    protected function rightJoin($table, $condition) {
-        $this->_criteria['join'][] = " RIGHT JOIN $table ON $condition";
+    protected function rightJoin($table, $condition)
+    {
+        $this->getCriteria()->join[] = " RIGHT JOIN $table ON $condition";
         return $this;
     }
 
-    public function reset() {
-        $this->_criteria = array(
-            'field' => '*',
-            'condition' => array(),
-            'values' => array(),
-        );
+    public function reset()
+    {
+        $this->_criteria = null;
+        $this->attributes = [];
     }
 
-    protected function getColumns($tableName = '') {
+    protected function getColumns($tableName = '')
+    {
         if ($tableName == '') {
             $tableName = $this->getTable();
         }
 
-        $this->_criteria['sql'] = 'SHOW FULL COLUMNS FROM `' . $tableName . '`';
+        $this->_criteria->sql = 'SHOW FULL COLUMNS FROM `' . $tableName . '`';
 
         $dbName = $this->getDb();
-        Db::db()->$dbName->prepare($this->_criteria['sql']);
+        Db::db()->$dbName->prepare($this->_criteria->sql);
         $column = Db::db()->$dbName->fetchAll();
         $this->reset();
 
@@ -789,7 +874,8 @@ abstract class Model implements \ArrayAccess {
         return $column;
     }
 
-    private function _extractType($dbType) {
+    private function _extractType($dbType)
+    {
         if (stripos($dbType, 'int') !== false && stripos($dbType, 'unsigned int') === false) {
             $type = 'integer';
         } elseif (stripos($dbType, 'bool') !== false) {
@@ -803,7 +889,8 @@ abstract class Model implements \ArrayAccess {
         return $type;
     }
 
-    public function validate($scenario = '') {
+    public function validate($scenario = '')
+    {
         if (!empty($scenario)) {
             $this->_scenario = $scenario;
         }
@@ -811,40 +898,40 @@ abstract class Model implements \ArrayAccess {
         $rules = $this->rules();
 
         if (isset($rules[$this->_scenario])) {
-            $this->validator = Validator::make($this->attributes, $rules[$this->_scenario], [], $this->alias());
-            return $this->validator->fails();
+            $this->_validator = Validator::make($this->attributes, $rules[$this->_scenario], [], $this->alias());
+            return $this->_validator->fails();
         }
 
         return true;
     }
 
-    public function getValidator($scene = 'default') {
+    public function getValidator($scene = 'default')
+    {
         $rule = $this->rules();
-        if (isset($this->validator) && $this->validator instanceof Validator) {
-            $this->validator->getValidator();
+        if (isset($this->_validator) && $this->_validator instanceof Validator) {
+            $this->_validator->getValidator();
         } else {
             return '{}';
         }
     }
 
-    public function getErrors() {
-        if ($this->validator instanceof Validator) {
-            return $this->validator->errors;
+    public function getErrors()
+    {
+        if ($this->_validator instanceof Validator) {
+            return $this->_validator->errors;
         }
 
         return [];
     }
 
-    protected function rules() {
+    protected function rules()
+    {
         return array();
     }
 
-    protected function alias() {
+    protected function alias()
+    {
         return array();
-    }
-
-    public function getCriteria() {
-        return $this->_criteria;
     }
 
     // private $container = array();
@@ -856,24 +943,41 @@ abstract class Model implements \ArrayAccess {
     //     );
     // }
 
-    public function offsetSet($offset, $value) {
-        if (is_null($offset)) {
-            $this->attributes[] = $value;
-        } else {
-            $this->attributes[$offset] = $value;
-        }
+    public function offsetSet($offset, $value)
+    {
+        $this->$offset = $value;
     }
-    public function offsetExists($offset) {
-        return isset($this->attributes[$offset]);
+    public function offsetExists($offset)
+    {
+        return isset($this->$offset);
     }
-    public function offsetUnset($offset) {
-        unset($this->attributes[$offset]);
+    public function offsetUnset($offset)
+    {
+        unset($this->$offset);
     }
-    public function offsetGet($offset) {
-        return isset($this->attributes[$offset]) ? $this->attributes[$offset] : null;
+    public function offsetGet($offset)
+    {
+        return isset($this->$offset) ? $this->$offset : null;
     }
 
-    public function getAttributes() {
+    public function getAttributes()
+    {
         return $this->attributes;
+    }
+
+    public function getModelName($name, $ucfrist = true)
+    {
+        $newName = '';
+        for ($i=0; $i<strlen($name); $i++) {
+            if ($name[$i] == '_') {
+                $name[$i+1] = strtoupper($name[$i+1]);
+            } else {
+                $newName .= $name[$i];
+            }
+        }
+        if ($ucfrist) {
+            return ucfirst($newName);
+        }
+        return $newName;
     }
 }

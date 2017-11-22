@@ -8,60 +8,92 @@ namespace Li;
  * pageVar get变量名
  * offset 数据便宜
  * limit 同pageSize
+ *
+ * 三种用法：
+ * new Pagination($model, $config)
+ * new Pagination($config)
+ * new Pagination()
+ * 
  */
 class Pagination {
-    private $_model;
+    // private $_model;
+    // private $_config;
 
-    public $currentPage; // 当前页数
-    public $prePage; // 前一页数
-    public $nextPage; // 下一页数
-    public $itemCount; // 总条目
-    public $pageCount; // 总页数
-    public $pageSize = 10; // 每页条数
-    public $pageVar  = 'p'; // get变量名
+    public $className   = 'page'; // css类名
 
-    public $rangePage = 5; //显示当前页码的前后5页
-    public $startPage = 1;
-    public $endPage = 1;
+    public $currentPage = 1; // 当前页数
+    public $prePage     = 1; // 前一页数
+    public $nextPage    = 1; // 下一页数
+    public $itemCount   = 15; // 总条目
+    public $pageCount   = 1; // 总页数
+    public $pageSize    = 15; // 每页条数
+    public $pageVar     = 'p'; // get变量名
+
+    public $rangePage   = 5; //显示当前页码的前后5页
+    public $startPage   = 1;
+    public $endPage     = 1;
 
     public $preHref;
-    // public $offset;// 数据偏移
-    // public $limit;// 同pageSize
 
-    public function __construct($model, $config) {
-        $this->_model      = $model;
-        $this->currentPage = empty($_GET[$this->pageVar]) ? 1 : (int) $_GET[$this->pageVar];
-
-        if(isset($config['pagination']) && is_array($config['pagination'])) {
-            foreach($config['pagination'] as $key => $value) {
-                $this->$key = $value;
-            }
-        }
-
-        $this->init($config['criteria']);
-
-        if (empty($criteria['order'])) {
-            $criteria['order'] = $this->_model->pk . ' DESC';
-        }
-
-        $criteria['limit'] = ($this->currentPage - 1) * $this->pageSize . ',' . $this->pageSize;
-    }
-
-    public function init($criteria = array()) {
-        $this->itemCount = $this->_model->count($criteria);
-
-        $this->pageCount = ceil($this->itemCount / $this->pageSize);
-
-        if ($this->pageCount < 1) {
-            $this->pageCount = 1;
-        }
-
+    public function __construct($config=null)
+    {
+        $this->currentPage = intval(get($this->pageVar, 1));
         if ($this->currentPage < 1) {
             $this->currentPage = 1;
         }
 
+        $this->initConfig($config);
+
+        // if($argc == 0) {
+        //     // $this->init();
+        // } else if($argc == 1) { // config
+        //     $this->initConfig($argc[0]);
+        //     // $this->init();
+
+        // } else if($argc == 2) { // $model, $config
+
+        //     $this->_model = $argv[0];
+
+        //     $this->initConfig($argv[1]);
+        //     $this->init($config['criteria']);
+
+        //     if (empty($criteria['order'])) {
+        //         $criteria['order'] = $this->_model->getPk() . ' DESC';
+        //     }
+
+        //     $criteria['limit'] = ($this->currentPage - 1) * $this->pageSize . ',' . $this->pageSize;
+        // }
+    }
+
+    protected function initConfig($config)
+    {
+        if(!empty($config) && is_array($config)) {
+            foreach($config as $key => $value) {
+                $this->$key = $value;
+            }   
+        }
+    }
+
+    public function getItemCount($model, $criteria=null)
+    {
+        if(is_string($model)) {
+            return M($model)->count($criteria);
+        } else {
+            return $model->count($criteria);
+        }
+    }
+
+    public function init($model, $criteria=null) {
+        $this->itemCount = $this->getItemCount($model, $criteria);
+
+        $this->pageCount = ceil($this->itemCount / $this->pageSize);
+
         if ($this->currentPage > $this->pageCount) {
             $this->currentPage = $this->pageCount;
+        }
+
+        if ($this->pageCount < 1) {
+            $this->pageCount = 1;
         }
 
         $this->prePage  = $this->currentPage - 1;

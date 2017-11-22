@@ -249,7 +249,7 @@ class GridView {
             $tmp='<a  href="';
             if(isset($value['url'])) {
                 $tmp .= $this->evaluateExpression($value['url'], array('data'=>$row));
-            } else {
+            } elseif(isset($value['action'])) {
                 $value['options']['class']='gridview-'.$value['action'];
                 $tmp.=url().'/'.$this->controller->id.'/'.$value['action'].'?id='.$row['id'].'&from='.urlencode($_SERVER['REQUEST_URI']);
             }
@@ -292,6 +292,9 @@ class GridView {
      * @return mixed the expression result
      */
     public function evaluateExpression($_expression_, $_data_) {
+        // debug($_data_);
+        // debug($_expression_);
+        // die;
         if (is_string($_expression_)) {
             extract($_data_);
             return eval('return '.$_expression_.';');

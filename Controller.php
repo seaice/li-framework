@@ -1,7 +1,8 @@
 <?php
 namespace Li;
 
-abstract class Controller {
+abstract class Controller
+{
     public $id;
     public $route;
     public $action = 'index';
@@ -10,22 +11,24 @@ abstract class Controller {
 
     private $_template;
 
-    public function __construct($id) {
+    public function __construct($id)
+    {
         $this->id = $id;
         $this->layout = 'layout' . DIRECTORY_SEPARATOR . 'main';
-        $this->init();
         $this->initTemplate();
     }
 
-    public function init() {}
+    public function init()
+    {
+    }
 
     /**
      * 创建一个控制器
      * @param  [type] $route [description]
      * @return [type]        [description]
      */
-    static function create($route) {
-
+    public static function create($route)
+    {
         if (($route = trim($route, '/')) === '') {
             $route = App::app()->config['defaultController'];
         }
@@ -40,15 +43,15 @@ abstract class Controller {
             }
 
             $className = ucfirst($id) . 'Controller';
+            $fullClassName = App::app()->namespace . '\core\controller\\' . $className;
             $classFile = App::app()->getControllerPath() . '\\' . $className . '.php';
 
             if (is_file($classFile)) {
-                if (!class_exists($className, false)) {
+                if (!class_exists($fullClassName, false)) {
                     require $classFile;
                 }
 
-                // debug(class_parents ($className));
-                if (class_exists($className, false) && is_subclass_of($className, 'Li\Controller')) {
+                if (class_exists($fullClassName, true) && is_subclass_of($fullClassName, 'Li\Controller')) {
                     $id[0] = strtolower($id[0]);
 
                     $route = substr($route, $pos + 1);
@@ -61,7 +64,8 @@ abstract class Controller {
                     // 初始化$_GET
                     \Li\Route::instance()->parseActionParams(substr($route, $seg + 1));
 
-                    $controller = new $className($id);
+                    $controller = new $fullClassName($id);
+                    $controller->init();
                     $controller->runAction((empty($actionId) ? App::app()->config['defaultAction'] : $actionId));
 
                     return $controller;
@@ -72,16 +76,18 @@ abstract class Controller {
 
                 return null;
             } else {
-                echo 'controller file not exist';
-                die;
+                Log::log()->warning("controller $fullClassName not exist");
+                if(!App::app()->config['debug']){
+                    redirect('/404.html');
+                }
             }
         } else {
             echo 'error';
         }
-
     }
 
-    public function runAction($action) {
+    public function runAction($action)
+    {
         if (empty($action)) {
             $action = $this->action;
         }
@@ -90,48 +96,68 @@ abstract class Controller {
         $this->$action();
     }
 
-    private function initTemplate() {
+    private function initTemplate()
+    {
         $this->_template = new \Smarty();
 
-        if(isset(App::app()->config['smarty']['caching'])) {
-            $this->_template->cache_lifetime = App::app()->config['smarty']['caching'];
+        if (isset(App::app()->config['smarty']['caching'])) {
+            $this->_template->caching = App::app()->config['smarty']['caching'];
         }
-        if(isset(App::app()->config['smarty']['cache_lifetime'])) {
+        if (isset(App::app()->config['smarty']['cache_lifetime'])) {
             $this->_template->cache_lifetime = App::app()->config['smarty']['cache_lifetime'];
         }
 
         $this->_template->muteExpectedErrors();
+        $this->_template->php_handling = \Smarty::PHP_ALLOW;
 
         $this->_template->setTemplateDir(PATH_APP . 'core\\view\\');
         $this->_template->setCompileDir(PATH_APP . 'runtime\\template\\templates_c');
         // $smarty->setConfigDir('/web/www.example.com/guestbook/configs/');
         $this->_template->setCacheDir(PATH_APP . 'runtime\\template\\cache');
+
+        $this->_template->addPluginsDir(PATH_LI . '\\vendor\\smarty\\plugin');
+        $this->_template->addPluginsDir(PATH_APP . 'core\\vendor\\smarty\\plugin');
     }
 
-    public function assign($varname, $var) {
-        $this->_template->assign($varname, $var);
+    public function assign($tpl_var, $value, $nocache = false)
+    {
+        $this->_template->assign($tpl_var, $value, $nocache);
     }
 
-    public function display($template = '') {
+    public function display($template = '')
+    {
         if (empty($template)) {
             $template = $this->id . '\\' . $this->action;
         }
-        $this->assign('content', $this->_getTemplateName($template));
-        $this->_template->display($this->_getTemplateName($this->layout));
+        if (isset($this->title)) {
+            $this->assign('title', $this->title);
+        }
+        if (isset($this->meta_keywords)) {
+            $this->assign('meta_keywords', $this->meta_keywords);
+        }
+        if (isset($this->meta_description)) {
+            $this->assign('meta_description', $this->meta_description);
+        }
+        // $this->assign('content', $this->_getTemplateName($template), true);
+        // $this->_template->display($this->_getTemplateName($this->layout));
+        $this->_template->display($this->_getTemplateName($template));
     }
 
-    public function clearAllAssign() {
+    public function clearAllAssign()
+    {
         $this->_template->clearAllAssign();
     }
 
-    public function clearAllCache() {
+    public function clearAllCache()
+    {
         $this->_template->clearAllCache();
     }
 
     /**
      * 不渲染layout
      */
-    public function displayPartial($template = '') {
+    public function displayPartial($template = '')
+    {
         if (empty($template)) {
             $template = $this->id . '\\' . $this->action;
         }
@@ -139,7 +165,8 @@ abstract class Controller {
         $this->_template->display($this->_getTemplateName($template));
     }
 
-    public function fetch($template = '') {
+    public function fetch($template = '')
+    {
         if (empty($template)) {
             $template = $this->id . '\\' . $this->action;
         }
@@ -147,22 +174,21 @@ abstract class Controller {
         return $this->_template->fetch($this->_getTemplateName($template));
     }
 
-    private function _getTemplateName($template) {
+    private function _getTemplateName($template)
+    {
         return $template . '.html';
     }
 
-    public function outputJSON($errno, $data = array(), $model=false) {
-        if($model) {
-            foreach($data as $value) {
-                $ret[] = $value->getAttributes();
-            }
-            $data = $ret;
-        }
-
+    public function outputJSON($errno, $msg="", $data = array())
+    {
         $ret = array(
-            'errno' => $errno ? "0" : "1",
-            'data' => $data,
+            'errno' => $errno ? "1" : "0",
+            'msg' => $msg,
         );
+
+        if(!empty($data)) {
+            $ret['data'] = $data;
+        }
 
         echo json_encode($ret);
         die;
@@ -171,26 +197,29 @@ abstract class Controller {
     /**
      * 创建url
      */
-    public function url($param = array()) {
+    public function url($param = array())
+    {
         return App::app()->url($this->id, $this->action, $param);
     }
 
-    public function redirect($uri, $params=[]) {
-
+    public function redirect($uri = '', $params = [])
+    {
+        if (is_numeric($uri)) {
+            http_response_code($uri);
+            Log::log()->warning($uri. ' ' . $_SERVER['REQUEST_URI']);
+            $uri .= '.html';
+        }
+        $urlParam = [];
         foreach ($params as $key => $value) {
             $urlParam[] = $key;
             $urlParam[] = $value;
         }
-
-        $url = $uri . '/' . implode('/', $urlParam);
+        if (empty($urlParam)) {
+            $url = $uri;
+        } else {
+            $url = $uri . '/' . implode('/', $urlParam);
+        }
 
         redirect(App::app()->config['domain'] . url() . '/' . $url);
-
-        // debug(implode('/', $params));
-        // debug(\http_build_query($argv[0], '','/'));
-        // debug(func_get_args());
-        // debug(url().$uri);
-        // redirect(url().$uri);
-
     }
 }

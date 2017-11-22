@@ -10,7 +10,17 @@ class Mysql
     
     public function beginTransaction()
     {
-        $this->pdo->beginTransaction();
+        return $this->_link->beginTransaction();
+    }
+    
+    public function commit()
+    {
+        return $this->_link->commit();
+    }
+
+    public function rollBack()
+    {
+        return $this->_link->rollBack();
     }
 
     public function __construct($config)
