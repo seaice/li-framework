@@ -10,6 +10,8 @@ class Route
     private $_requestUri;
     private $_pathInfoOri;
     private $_pathInfo;
+    private $_hostInfo;
+    private $_baseUrl;
     private $_urlFormat='get';
 
     public $caseSensitive = true;
@@ -179,7 +181,7 @@ class Route
 
     public function getScriptUrl()
     {
-        if($this->_scriptUrl===null)
+        if($this->_scriptUrl === null)
         {
             $scriptName=basename($_SERVER['SCRIPT_FILENAME']);
             if(basename($_SERVER['SCRIPT_NAME'])===$scriptName)
@@ -198,4 +200,55 @@ class Route
         return $this->_scriptUrl;
     }
 
+    public function getIsSecureConnection()
+    {
+        return isset($_SERVER['HTTPS']) && (strcasecmp($_SERVER['HTTPS'],'on')===0 || $_SERVER['HTTPS']==1)
+            || isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strcasecmp($_SERVER['HTTP_X_FORWARDED_PROTO'],'https')===0;
+    }
+
+    public function getHostInfo()
+    {
+        if($this->_hostInfo === null) {
+            if($secure=$this->getIsSecureConnection())
+                    $http='https';
+                else
+                    $http='http';
+
+            if(isset($_SERVER['HTTP_HOST'])) {
+                $this->_hostInfo=$http . '://' . $_SERVER['HTTP_HOST'];
+            } else {
+                $this->_hostInfo=$http . '://' . $_SERVER['SERVER_NAME'] . ':' . $_SERVER['SERVER_PORT'];
+            }
+        }
+
+        return $this->_hostInfo;
+    }
+
+    public function getBaseUrl($absolute=false)
+    {
+        if($this->_baseUrl === null) {
+            $this->_baseUrl = rtrim(dirname($this->getScriptUrl()),'\\/');
+        }
+
+        return $absolute ? $this->getHostInfo() . $this->_baseUrl : $this->_baseUrl;
+    }
+
+    public function createUrl($route, $absolute=false)
+    {
+        $route = trim($route, '/');
+
+        if(empty($route)) {
+            return $this->getBaseUrl($absolute);
+        }
+
+        if($this->_urlFormat == 'path') {
+            return $this->getBaseUrl($absolute) . '/' . $route;
+        } else {
+            if($absolute) {
+                return $this->getHostInfo() . $this->getScriptUrl() . '?r=' . $route;
+            } else {
+                return $this->getScriptUrl() . '?r=' . $route;
+            }
+        }
+    }
 }

@@ -96,17 +96,22 @@ function S($service)
     return $class::service();
 }
 /**
- * 获得根路径url
+ * 生成url
  * @param  string $url [description]
  * @return [type]      [description]
  */
-function url($url = '')
+function url($route='', $absolute=false)
 {
-    $preUrl = str_replace('\\', '/', PATH_APP_REL);
-    if ($preUrl === '/') {
-        $preUrl = '';
-    }
-    return $preUrl . $url;
+    return \Li\Route::instance()->createUrl($route, $absolute);
+}
+
+/**
+ * 获得根路径
+ * @return [type]      [description]
+ */
+function baseUrl($absolute=false)
+{
+    return \Li\Route::instance()->getBaseUrl($absolute);
 }
 
 /**

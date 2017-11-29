@@ -64,6 +64,12 @@ class App
         if (is_array($config)) {
             $this->config = array_merge($this->config, $config);
         }
+
+        if($this->config['debug'] !== false) {
+            error_reporting($this->config['debug']);
+        } else {
+            error_reporting(0);
+        }
     }
 
     /**
@@ -167,17 +173,11 @@ class App
                     }
                 }
             } else {
-                // debug($className);
                 // 命名空间
                 $path = explode('\\', $className);
 
-                // debug($path);
-                // die;
-
                 $classFile = PATH_APP . '..' . DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $path) . '.php';
 
-                // debug($classFile);
-                // die;
                 if (is_file($classFile)) {
                     include($classFile);
                 }
@@ -196,7 +196,7 @@ class App
         $error = error_get_last();
 
         if ($error !== null) {
-            if (App::app()->config['debug'] == false) {
+            if (App::app()->config['debug']) {
                 Log::log()->fatal('Fatal Error:  ' .$error['message'] . ' in '. $error['file']. ' on '.$error['line']);
             }
         }

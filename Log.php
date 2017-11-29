@@ -99,11 +99,11 @@ class Log
             $log = date('Y-m-d H:i:s', NOW).' '.'['.$level.'] '.$message. ' [' . $this->file.':'.$this->line . "]\r\n";
         }
 
-        if(App::app()->config['debug']) {
-            echo $log . PHP_EOL;
-        } else {
-            error_log($log, 3, $filePath.$fileName);
+        if(!is_dir($filePath)) {
+            mkdir($filePath);
         }
+
+        error_log($log, 3, $filePath.$fileName);
 
         $this->_configIndex=null;
     }
