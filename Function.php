@@ -100,6 +100,14 @@ function S($service)
  * @param  string $url [description]
  * @return [type]      [description]
  */
+// function url($url = '')
+// {
+//     $preUrl = str_replace('\\', '/', PATH_APP_REL);
+//     if ($preUrl === '/') {
+//         $preUrl = '';
+//     }
+//     return $preUrl . $url;
+// }
 function url($route='', $absolute=false)
 {
     return \Li\Route::instance()->createUrl($route, $absolute);

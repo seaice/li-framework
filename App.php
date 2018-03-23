@@ -196,7 +196,7 @@ class App
         $error = error_get_last();
 
         if ($error !== null) {
-            if (App::app()->config['debug']) {
+            if (App::app()->config['debug'] == false) {
                 Log::log()->fatal('Fatal Error:  ' .$error['message'] . ' in '. $error['file']. ' on '.$error['line']);
             }
         }

@@ -103,7 +103,17 @@ class Log
             mkdir($filePath);
         }
 
-        error_log($log, 3, $filePath.$fileName);
+        if($message instanceof \Exception) {
+            $log = date('Y-m-d H:i:s', NOW).' '.'['.$level.'] '.$message->getMessage(). ' [' . $message->getFile().':'.$message->getLine() . "]\r\n";
+        } else {
+            $log = date('Y-m-d H:i:s', NOW).' '.'['.$level.'] '.$message. ' [' . $this->file.':'.$this->line . "]\r\n";
+        }
+
+        if(App::app()->config['debug']) {
+            echo $log . PHP_EOL;
+        } else {
+            error_log($log, 3, $filePath.$fileName);
+        }
 
         $this->_configIndex=null;
     }
